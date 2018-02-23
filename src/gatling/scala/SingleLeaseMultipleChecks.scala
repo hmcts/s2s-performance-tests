@@ -14,7 +14,7 @@ class SingleLeaseMultipleChecks extends Simulation {
     http("Lease token")
       .post("/lease")
       .formParam("microservice", config.getString("service.name"))
-      .formParam("oneTimePassword", authenticator.getTotpPassword(config.getString("service.pass")))
+      .formParam("oneTimePassword", "${otp}")
       .check(bodyString.saveAs("jwt"))
   )
 
@@ -25,8 +25,11 @@ class SingleLeaseMultipleChecks extends Simulation {
       .check(substring(config.getString("service.name")))
   )
 
+  val otpFeeder = Iterator.continually(Map("otp" -> authenticator.getTotpPassword(config.getString("service.pass"))))
+
   setUp(
     scenario("Testing")
+      .feed(otpFeeder)
       .exec(requestJwt)
       .repeat(config.getInt("repeats")) {
         exec(checkJwt)
