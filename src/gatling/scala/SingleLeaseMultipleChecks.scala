@@ -35,11 +35,7 @@ class SingleLeaseMultipleChecks extends Simulation {
         exec(checkJwt)
       }
       .inject(
-        rampUsers(10) over (10 seconds),
-        constantUsersPerSec(100) during (10 seconds),
-        nothingFor(5 seconds),
-        constantUsersPerSec(200) during (10 seconds),
-        nothingFor(5 seconds)
+        rampUsers(10000) over (1 minute)
       )
   )
     .protocols(
