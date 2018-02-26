@@ -31,11 +31,12 @@ class SingleLeaseMultipleChecks extends Simulation {
     scenario("Testing")
       .feed(otpFeeder)
       .exec(requestJwt)
-      .repeat(config.getInt("repeats")) {
+      .during(2 minutes) {
         exec(checkJwt)
+          .pause(200 millis)
       }
       .inject(
-        rampUsers(10000) over (1 minute)
+        rampUsers(400) over (1 minute)
       )
   )
     .protocols(
