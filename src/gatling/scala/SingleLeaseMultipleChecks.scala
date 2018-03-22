@@ -2,45 +2,53 @@ import com.typesafe.config.{Config, ConfigFactory}
 import com.warrenstrange.googleauth.GoogleAuthenticator
 import io.gatling.core.Predef._
 import io.gatling.http.Predef._
+import io.gatling.http.request.builder.HttpRequestBuilder
 
 import scala.concurrent.duration._
 
 class SingleLeaseMultipleChecks extends Simulation {
-  val config: Config = ConfigFactory.load()
+  private val config: Config = ConfigFactory.load()
 
-  val authenticator: GoogleAuthenticator = new GoogleAuthenticator()
+  private val authenticator: GoogleAuthenticator = new GoogleAuthenticator()
 
-  val requestJwt = exec(
-    http("Lease token")
-      .post("/lease")
-      .formParam("microservice", config.getString("service.name"))
-      .formParam("oneTimePassword", "${otp}")
+  private val requestJwt = exec(
+    applyOptionalProxy(
+      http("Lease token")
+      .post("lease")
+      .body(StringBody("""{"microservice":"""" + config.getString("service.name") + """","oneTimePassword":"${otp}"}"""))
+      .asJSON
       .check(bodyString.saveAs("jwt"))
+    )
   )
 
-  val checkJwt = exec(
-    http("Check token")
-      .get("/details")
+  private val checkJwt = exec(
+    applyOptionalProxy(
+      http("Check token")
+      .get("details")
       .header("Authorization", "Bearer ${jwt}")
-      .check(substring(config.getString("service.name")))
+      .check(status not 500)
+    )
   )
 
-  val otpFeeder = Iterator.continually(Map("otp" -> authenticator.getTotpPassword(config.getString("service.pass"))))
+  private def applyOptionalProxy(req: HttpRequestBuilder): HttpRequestBuilder =
+    if (config.getString("proxy.host").isEmpty) req else
+      req.proxy(Proxy(config.getString("proxy.host"), config.getInt("proxy.port")))
+
+  private val otpFeeder = Iterator.continually(Map("otp" -> authenticator.getTotpPassword(config.getString("service.pass"))))
 
   setUp(
     scenario("Testing")
       .feed(otpFeeder)
       .exec(requestJwt)
-      .during(2 minutes) {
+      .during(20 minutes) {
         exec(checkJwt)
-          .pause(200 millis)
+        .pause(40 seconds, 60 seconds)
       }
       .inject(
-        rampUsers(400) over (1 minute)
+        rampUsers(5000) over (20 minutes)
       )
   )
-    .protocols(
-      http
-        .baseURL(config.getString("baseUrl"))
-    )
+  .protocols(
+    http.baseURL(config.getString("baseUrl"))
+  )
 }
